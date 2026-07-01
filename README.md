@@ -4,6 +4,12 @@ ControlCode 标签打印客户端 —— Windows 系统托盘程序。
 
 接收 RMA 服务推送的打印指令，通过 RAW 方式发送到本地标签机（Zebra / Eltron 等），也支持 LPT 并口直连。支持三种固定标签尺寸（4×2 / 4×3 / 4×6），每种尺寸可独立绑定打印机、REST 端口与打印类型。
 
+## 界面预览
+<img width="1452" height="862" alt="image" src="https://github.com/user-attachments/assets/b797d9e9-5d49-49f2-83e9-dbec7c83d51d" />
+
+
+设置界面：顶部显示本机局域网 IP，每行一种尺寸，含默认标记、调用链接（`http://ip:端口/LabelPrint`）、打印机、类型、端口、启用开关与独立测试按钮。
+
 ## 环境要求
 
 - Windows 10 / 11
@@ -142,7 +148,11 @@ P1
 
 **响应：** `200 OK` / `400` / `500`，正文为纯文本。
 
-> 打印类型（EPL/ZPL/文本）是每个尺寸的独立配置，仅影响设置界面里 **测试** 按钮生成的样张内容；通过 WebSocket 或 REST 收到的真实打印数据会原样透传给打印机，不做任何格式转换。
+> 打印类型（EPL/ZPL/文本）是每个尺寸的独立配置，同时决定测试样张的内容和发送方式：
+> - **EPL / ZPL**：以 **RAW** 方式把指令字节原样透传给打印机（只有真实标签机 Zebra/Eltron 等能解析），多个标签用空行分隔会拆成多个任务。
+> - **文本**：通过打印机的 GDI 驱动渲染成页面（`PrintDocument`），因此在任意 Windows 打印机（Microsoft Print to PDF、激光打印机、标签机）上都能正常打印，而不仅限于标签机；换页符 `\f` 分页。（LPT 并口无驱动，仍按原始字节写入。）
+>
+> 测试按钮与通过 WebSocket / REST 收到的真实任务，都按对应尺寸的打印类型走上述规则。
 
 ## 测试
 
@@ -166,6 +176,24 @@ Invoke-WebRequest `
   -ContentType "application/json" `
   -Body $body
 ```
+
+### REST（curl，端口决定尺寸/打印机）
+
+访问哪个端口就打到哪种尺寸绑定的打印机，无需在请求里指定别名：
+
+```bash
+# 4x2 → 端口 48210（纯文本）
+curl -X POST http://localhost:48210/LabelPrint \
+  -H "Content-Type: text/plain" \
+  --data-binary $'N\nA20,20,0,4,1,1,N,"Test"\nP1\n'
+
+# 4x6 → 端口 48212（JSON）
+curl -X POST http://localhost:48212/LabelPrint \
+  -H "Content-Type: application/json" \
+  -d '{"epl":"N\nA20,20,0,4,1,1,N,\"Test\"\nP1\n"}'
+```
+
+> 从其他机器调用时，把 `localhost` 换成设置界面顶部显示的本机 IP，并确保勾选了 **允许局域网访问**（需管理员）。
 
 ## 托盘菜单
 
