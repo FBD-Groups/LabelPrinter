@@ -10,6 +10,7 @@ public partial class SettingsForm : Form
     private readonly PrintHostService _host;
     private readonly List<FormatRow> _rows = new();
     private readonly List<string> _printerChoices = new();
+    private string _localIp = "127.0.0.1";
 
     public event Action<AppConfig>? ConfigSaved;
 
@@ -24,7 +25,8 @@ public partial class SettingsForm : Form
 
     private void LoadUi()
     {
-        lblHost.Text = $"本机地址: {NetworkHelper.GetLocalIPv4()}";
+        _localIp = NetworkHelper.GetLocalIPv4();
+        lblHost.Text = $"本机地址: {_localIp}";
 
         foreach (string name in PrinterSettings.InstalledPrinters)
             _printerChoices.Add(name);
@@ -45,7 +47,7 @@ public partial class SettingsForm : Form
 
     private void BuildHeaderRow()
     {
-        string[] headers = { "默认", "尺寸", "打印机", "类型", "端口", "启用", "" };
+        string[] headers = { "默认", "尺寸", "调用链接", "打印机", "类型", "端口", "启用", "" };
         for (var col = 0; col < headers.Length; col++)
         {
             var lbl = new Label
@@ -69,7 +71,24 @@ public partial class SettingsForm : Form
         var rdoDefault = new RadioButton { AutoSize = true, Checked = format.IsDefault, Anchor = AnchorStyles.Left };
         var lblSize = new Label { Text = format.Size, AutoSize = true, Anchor = AnchorStyles.Left };
 
-        var cboPrinter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 200 };
+        var numPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Clamp(format.Port, 1, 65535), Anchor = AnchorStyles.Left, Width = 70 };
+
+        var txtUrl = new TextBox
+        {
+            ReadOnly = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Text = BuildUrl((int)numPort.Value),
+            BackColor = SystemColors.Control,
+            BorderStyle = BorderStyle.None
+        };
+        numPort.ValueChanged += (_, _) => txtUrl.Text = BuildUrl((int)numPort.Value);
+
+        var cboPrinter = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            DropDownWidth = 320 // narrow box, but show full printer names when opened
+        };
         foreach (var choice in _printerChoices)
             cboPrinter.Items.Add(choice);
         var idx = cboPrinter.Items.IndexOf(format.PrinterName);
@@ -77,28 +96,29 @@ public partial class SettingsForm : Form
             idx = cboPrinter.Items.Add(format.PrinterName); // keep an unknown/offline printer selectable
         cboPrinter.SelectedIndex = idx >= 0 ? idx : (cboPrinter.Items.Count > 0 ? 0 : -1);
 
-        var cboType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left, Width = 64 };
+        var cboType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right };
         cboType.Items.AddRange(new object[] { "EPL", "ZPL", "文本" });
         cboType.SelectedIndex = (int)format.PrintType;
-
-        var numPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Clamp(format.Port, 1, 65535), Anchor = AnchorStyles.Left, Width = 66 };
 
         var chkEnabled = new CheckBox { Checked = format.Enabled, AutoSize = true, Anchor = AnchorStyles.Left };
 
         var btnTest = new Button { Text = "测试", Anchor = AnchorStyles.Left, Width = 56 };
 
-        var row = new FormatRow(format.Size, rdoDefault, lblSize, cboPrinter, cboType, numPort, chkEnabled, btnTest);
+        var row = new FormatRow(format.Size, rdoDefault, lblSize, txtUrl, cboPrinter, cboType, numPort, chkEnabled, btnTest);
         btnTest.Click += (_, _) => TestRow(row);
         _rows.Add(row);
 
         tlpFormats.Controls.Add(rdoDefault, 0, rowIndex);
         tlpFormats.Controls.Add(lblSize, 1, rowIndex);
-        tlpFormats.Controls.Add(cboPrinter, 2, rowIndex);
-        tlpFormats.Controls.Add(cboType, 3, rowIndex);
-        tlpFormats.Controls.Add(numPort, 4, rowIndex);
-        tlpFormats.Controls.Add(chkEnabled, 5, rowIndex);
-        tlpFormats.Controls.Add(btnTest, 6, rowIndex);
+        tlpFormats.Controls.Add(txtUrl, 2, rowIndex);
+        tlpFormats.Controls.Add(cboPrinter, 3, rowIndex);
+        tlpFormats.Controls.Add(cboType, 4, rowIndex);
+        tlpFormats.Controls.Add(numPort, 5, rowIndex);
+        tlpFormats.Controls.Add(chkEnabled, 6, rowIndex);
+        tlpFormats.Controls.Add(btnTest, 7, rowIndex);
     }
+
+    private string BuildUrl(int port) => $"http://{_localIp}:{port}/LabelPrint";
 
     private void TestRow(FormatRow row)
     {
@@ -190,6 +210,7 @@ public partial class SettingsForm : Form
         string Size,
         RadioButton Default,
         Label SizeLabel,
+        TextBox Url,
         ComboBox Printer,
         ComboBox Type,
         NumericUpDown Port,

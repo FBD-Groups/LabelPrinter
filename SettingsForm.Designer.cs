@@ -43,13 +43,13 @@ partial class SettingsForm
         //
         txtWsUrl.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         txtWsUrl.Location = new Point(110, 42);
-        txtWsUrl.Size = new Size(360, 23);
+        txtWsUrl.Size = new Size(680, 23);
         //
         // chkEnableWebSocket
         //
         chkEnableWebSocket.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         chkEnableWebSocket.AutoSize = true;
-        chkEnableWebSocket.Location = new Point(482, 44);
+        chkEnableWebSocket.Location = new Point(800, 44);
         chkEnableWebSocket.Text = "启用";
         chkEnableWebSocket.CheckedChanged += (_, _) => txtWsUrl.Enabled = chkEnableWebSocket.Checked;
         //
@@ -57,16 +57,18 @@ partial class SettingsForm
         //
         tlpFormats.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         tlpFormats.Location = new Point(16, 76);
-        tlpFormats.Size = new Size(556, 132);
-        tlpFormats.ColumnCount = 7;
+        tlpFormats.Size = new Size(828, 132);
+        tlpFormats.ColumnCount = 9;
         tlpFormats.RowCount = 1;
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48F));   // default radio
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48F));   // size
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));   // printer
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));   // type
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72F));   // port
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52F));   // enabled
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64F));   // test
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));    // default radio
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38F));    // size
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250F));   // call URL
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));   // printer
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62F));    // type
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78F));    // port
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));    // enabled
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60F));    // test
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));    // spacer (absorbs extra width)
         //
         // chkRunAtStartup
         //
@@ -83,7 +85,7 @@ partial class SettingsForm
         // btnSave
         //
         btnSave.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnSave.Location = new Point(476, 214);
+        btnSave.Location = new Point(748, 214);
         btnSave.Size = new Size(96, 28);
         btnSave.Text = "保存并应用";
         btnSave.Click += BtnSave_Click;
@@ -102,13 +104,13 @@ partial class SettingsForm
         txtLog.Multiline = true;
         txtLog.ReadOnly = true;
         txtLog.ScrollBars = ScrollBars.Vertical;
-        txtLog.Size = new Size(556, 150);
+        txtLog.Size = new Size(828, 150);
         //
         // SettingsForm
         //
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(588, 440);
+        ClientSize = new Size(860, 440);
         Controls.Add(txtLog);
         Controls.Add(lblLog);
         Controls.Add(btnSave);
@@ -119,7 +121,7 @@ partial class SettingsForm
         Controls.Add(txtWsUrl);
         Controls.Add(lblWsUrl);
         Controls.Add(lblHost);
-        MinimumSize = new Size(560, 420);
+        MinimumSize = new Size(800, 440);
         Name = "SettingsForm";
         StartPosition = FormStartPosition.CenterScreen;
         Text = "ControlCode Label Printer - 设置";
