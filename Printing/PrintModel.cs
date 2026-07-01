@@ -23,12 +23,12 @@ public sealed class PrintModel
 
         if (printType == LabelPrintType.Text)
         {
-            // Render as text: one job, CRLF line endings, driver-rendered on GDI printers.
-            var text = data.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            // Render text through the printer's GDI driver so it prints on ANY printer
+            // (PDF, laser, label). A raw LPT port has no driver, so write bytes directly.
             if (isLpt)
-                LptPrinter.Print(printerName, text);
+                LptPrinter.Print(printerName, data.Replace("\r\n", "\n").Replace("\n", "\r\n"));
             else
-                RawPrinterHelper.SendStringToPrinter(printerName, text, "TEXT");
+                TextPagePrinter.Print(printerName, data);
             return;
         }
 
