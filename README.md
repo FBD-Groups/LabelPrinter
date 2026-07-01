@@ -5,8 +5,8 @@ ControlCode 标签打印客户端 —— Windows 系统托盘程序。
 接收 RMA 服务推送的打印指令，通过 RAW 方式发送到本地标签机（Zebra / Eltron 等），也支持 LPT 并口直连。支持三种固定标签尺寸（4×2 / 4×3 / 4×6），每种尺寸可独立绑定打印机、REST 端口与打印类型。
 
 ## 界面预览
+<img width="1452" height="862" alt="image" src="https://github.com/user-attachments/assets/b797d9e9-5d49-49f2-83e9-dbec7c83d51d" />
 
-![设置界面](docs/settings-ui.png)
 
 设置界面：顶部显示本机局域网 IP，每行一种尺寸，含默认标记、调用链接（`http://ip:端口/LabelPrint`）、打印机、类型、端口、启用开关与独立测试按钮。
 
