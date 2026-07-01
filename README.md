@@ -4,6 +4,12 @@ ControlCode 标签打印客户端 —— Windows 系统托盘程序。
 
 接收 RMA 服务推送的打印指令，通过 RAW 方式发送到本地标签机（Zebra / Eltron 等），也支持 LPT 并口直连。支持三种固定标签尺寸（4×2 / 4×3 / 4×6），每种尺寸可独立绑定打印机、REST 端口与打印类型。
 
+## 界面预览
+
+![设置界面](docs/settings-ui.png)
+
+设置界面：顶部显示本机局域网 IP，每行一种尺寸，含默认标记、调用链接（`http://ip:端口/LabelPrint`）、打印机、类型、端口、启用开关与独立测试按钮。
+
 ## 环境要求
 
 - Windows 10 / 11
@@ -170,6 +176,24 @@ Invoke-WebRequest `
   -ContentType "application/json" `
   -Body $body
 ```
+
+### REST（curl，端口决定尺寸/打印机）
+
+访问哪个端口就打到哪种尺寸绑定的打印机，无需在请求里指定别名：
+
+```bash
+# 4x2 → 端口 48210（纯文本）
+curl -X POST http://localhost:48210/LabelPrint \
+  -H "Content-Type: text/plain" \
+  --data-binary $'N\nA20,20,0,4,1,1,N,"Test"\nP1\n'
+
+# 4x6 → 端口 48212（JSON）
+curl -X POST http://localhost:48212/LabelPrint \
+  -H "Content-Type: application/json" \
+  -d '{"epl":"N\nA20,20,0,4,1,1,N,\"Test\"\nP1\n"}'
+```
+
+> 从其他机器调用时，把 `localhost` 换成设置界面顶部显示的本机 IP，并确保勾选了 **允许局域网访问**（需管理员）。
 
 ## 托盘菜单
 
