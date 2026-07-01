@@ -60,10 +60,6 @@ public sealed class AppConfig
             f.Enabled && string.Equals(f.Alias, alias, StringComparison.OrdinalIgnoreCase));
     }
 
-    // Legacy shim: kept ONLY so the pre-refactor PrintModel keeps compiling
-    // between this task and Task 5. Task 5 deletes this method.
-    public string ResolvePrinterName(string? aliasFromMessage) => PrinterName;
-
     public static AppConfig Load()
     {
         var builder = new ConfigurationBuilder()
