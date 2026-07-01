@@ -133,9 +133,16 @@ public sealed class WebSocketPrintListener : IAsyncDisposable
                 }
                 else
                 {
-                    _log($"Received LabelPrint job for {format.Size}.");
-                    _printModel.PrintTo(printMsg.EplData, format.PrinterName);
-                    _log($"Print job sent to {format.PrinterName}.");
+                    try
+                    {
+                        _log($"Received LabelPrint job for {format.Size}.");
+                        _printModel.PrintTo(printMsg.EplData, format.PrinterName);
+                        _log($"Print job sent to {format.PrinterName}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _log($"Print job for {format.Size} failed: {ex.Message}");
+                    }
                 }
             }
             else if (!string.IsNullOrWhiteSpace(message))
