@@ -7,3 +7,5 @@ logs/
 .idea/
 *.log
 appsettings.Development.json
+/.github
+.superpowers/
