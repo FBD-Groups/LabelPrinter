@@ -7,7 +7,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>LabelPrinter</RootNamespace>
     <AssemblyName>LabelPrinter</AssemblyName>
-    <Description>ControlCode label print tray application</Description>
+    <Description>Label Printer Service tray application</Description>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <DefaultItemExcludes>$(DefaultItemExcludes);LabelPrinter.Tests\**</DefaultItemExcludes>
   </PropertyGroup>

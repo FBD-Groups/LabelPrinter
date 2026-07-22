@@ -21,7 +21,7 @@ public static class SampleLabelGenerator
             LabelPrintType.Zpl =>
                 $"^XA\n^PW{widthDots}\n^LL{heightDots}\n^FO50,50^A0N,40,40^FDTEST {size}^FS\n^XZ\n",
             LabelPrintType.Text =>
-                $"TEST {size}\nControlCode Label Printer\n\f",
+                $"TEST {size}\nLabel Printer Service\n\f",
             LabelPrintType.Pdf =>
                 Convert.ToBase64String(GeneratePdfBytes(size)),
             _ => // Epl
@@ -38,7 +38,7 @@ public static class SampleLabelGenerator
         var (widthPt, heightPt) = ToUnits(size, PointsPerInch);
         var content =
             $"BT /F1 18 Tf 36 {heightPt - 52} Td ({EscapePdfText($"TEST {size}")}) Tj ET\n" +
-            $"BT /F1 12 Tf 36 {heightPt - 72} Td ({EscapePdfText("ControlCode Label Printer")}) Tj ET\n";
+            $"BT /F1 12 Tf 36 {heightPt - 72} Td ({EscapePdfText("Label Printer Service")}) Tj ET\n";
         var contentBytes = Encoding.ASCII.GetBytes(content);
 
         string[] objects =

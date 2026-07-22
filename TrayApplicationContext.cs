@@ -18,7 +18,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _trayIcon = new NotifyIcon
         {
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
-            Text = "ControlCode Label Printer",
+            Text = "Label Printer Service",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };

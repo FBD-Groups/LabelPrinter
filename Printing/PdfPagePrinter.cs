@@ -28,7 +28,7 @@ public static class PdfPagePrinter
             doc.PrinterSettings.PrinterName = printerName;
             if (!doc.PrinterSettings.IsValid)
                 throw new InvalidOperationException($"Printer '{printerName}' is not available.");
-            doc.DocumentName = "ControlCode Label PDF";
+            doc.DocumentName = "Label Printer Service";
 
             // Without this, PageBounds comes from whatever page size the driver currently
             // has configured (e.g. a leftover default), not the PDF's actual size — the

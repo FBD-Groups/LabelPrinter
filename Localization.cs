@@ -32,7 +32,7 @@ public static class L
 
     private static readonly Dictionary<string, (string Zh, string En)> Map = new()
     {
-        ["title"] = ("ControlCode Label Printer - 设置", "ControlCode Label Printer - Settings"),
+        ["title"] = ("Label Printer Service - 设置", "Label Printer Service - Settings"),
         ["host"] = ("本机地址", "Local address"),
         ["websocket"] = ("WebSocket:", "WebSocket:"),
         ["enable"] = ("启用", "Enable"),
@@ -60,7 +60,7 @@ public static class L
         ["tray.menu.settings"] = ("设置...", "Settings..."),
         ["tray.menu.reconnect"] = ("重新连接", "Reconnect"),
         ["tray.menu.exit"] = ("退出", "Exit"),
-        ["tray.balloon.title"] = ("ControlCode Label Printer", "ControlCode Label Printer"),
+        ["tray.balloon.title"] = ("Label Printer Service", "Label Printer Service"),
         ["tray.balloon.started"] = ("已在系统托盘运行。双击图标可打开设置。", "Running in the system tray. Double-click the icon to open settings."),
         ["tray.balloon.reconnected"] = ("已重新连接。", "Reconnected."),
 
