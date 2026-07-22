@@ -18,7 +18,7 @@ public static class PdfPagePrinter
         if (pdfBytes is null || pdfBytes.Length == 0)
             throw new ArgumentException("PDF data is empty.", nameof(pdfBytes));
 
-        var images = RenderPages(pdfBytes);
+        var (images, pageSizePoints) = RenderPages(pdfBytes);
         try
         {
             if (images.Count == 0)
@@ -29,6 +29,17 @@ public static class PdfPagePrinter
             if (!doc.PrinterSettings.IsValid)
                 throw new InvalidOperationException($"Printer '{printerName}' is not available.");
             doc.DocumentName = "ControlCode Label PDF";
+
+            // Without this, PageBounds comes from whatever page size the driver currently
+            // has configured (e.g. a leftover default), not the PDF's actual size — the
+            // image then gets scaled/centered against the WRONG page and part of the label
+            // ends up beyond where the physical stock is cut. PaperSize is in hundredths
+            // of an inch; PDF points are 1/72 inch.
+            doc.DefaultPageSettings.PaperSize = new PaperSize(
+                "Label",
+                (int)Math.Round(pageSizePoints.Width / 72 * 100),
+                (int)Math.Round(pageSizePoints.Height / 72 * 100));
+            doc.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
 
             var pageIndex = 0;
             doc.PrintPage += (_, e) =>
@@ -54,10 +65,10 @@ public static class PdfPagePrinter
         }
     }
 
-    private static List<Image> RenderPages(byte[] pdfBytes) =>
+    private static (List<Image> images, SizeF firstPageSizePoints) RenderPages(byte[] pdfBytes) =>
         RenderPagesAsync(pdfBytes).ConfigureAwait(false).GetAwaiter().GetResult();
 
-    private static async Task<List<Image>> RenderPagesAsync(byte[] pdfBytes)
+    private static async Task<(List<Image>, SizeF)> RenderPagesAsync(byte[] pdfBytes)
     {
         using var mem = new InMemoryRandomAccessStream();
         await mem.WriteAsync(pdfBytes.AsBuffer()).AsTask().ConfigureAwait(false);
@@ -65,10 +76,13 @@ public static class PdfPagePrinter
 
         var pdf = await PdfDocument.LoadFromStreamAsync(mem).AsTask().ConfigureAwait(false);
         var list = new List<Image>((int)pdf.PageCount);
+        var firstPageSize = SizeF.Empty;
 
         for (uint i = 0; i < pdf.PageCount; i++)
         {
             using var page = pdf.GetPage(i);
+            if (i == 0)
+                firstPageSize = new SizeF((float)page.Size.Width, (float)page.Size.Height);
             using var outStream = new InMemoryRandomAccessStream();
 
             // ~2× PDF point size ≈ 144 dpi equivalent — sharp enough for thermal labels.
@@ -89,6 +103,6 @@ public static class PdfPagePrinter
             list.Add(new Bitmap(temp));
         }
 
-        return list;
+        return (list, firstPageSize);
     }
 }
