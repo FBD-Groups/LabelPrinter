@@ -120,7 +120,7 @@ public partial class SettingsForm : Form
 
     private string BuildUrl(int port) => $"http://{_localIp}:{port}/LabelPrint";
 
-    private void TestRow(FormatRow row)
+    private async void TestRow(FormatRow row)
     {
         ApplyUiToConfig();
         var printerName = (string?)row.Printer.SelectedItem ?? "";
@@ -132,15 +132,28 @@ public partial class SettingsForm : Form
 
         var type = (LabelPrintType)row.Type.SelectedIndex;
         var sample = SampleLabelGenerator.Generate(type, row.Size);
+
+        // Printer I/O (OpenPrinter/WritePrinter, PrintDocument.Print) is synchronous and can
+        // block for seconds if the printer is asleep/slow to respond. Run it off the UI thread
+        // so the window stays responsive, and flip the button so the click's effect is visible
+        // immediately instead of looking like nothing happened.
+        row.Test.Enabled = false;
+        var originalText = row.Test.Text;
+        row.Test.Text = "打印中...";
         try
         {
-            new PrintModel().PrintTo(sample, printerName, type);
+            await Task.Run(() => new PrintModel().PrintTo(sample, printerName, type));
             AppendLog($"Test [{row.Size}/{type}] sent to {printerName}.");
         }
         catch (Exception ex)
         {
             AppendLog($"Test [{row.Size}] failed: {ex.Message}");
             MessageBox.Show(this, ex.Message, "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            row.Test.Text = originalText;
+            row.Test.Enabled = true;
         }
     }
 
