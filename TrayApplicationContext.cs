@@ -13,7 +13,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _host.LogMessage += OnLogMessage;
         _host.Start(_config);
-        StartupRegistration.Apply(_config.RunAtStartup);
+        TryApplyStartup(_config.RunAtStartup);
 
         _trayIcon = new NotifyIcon
         {
@@ -69,11 +69,35 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnConfigSaved(AppConfig config)
     {
-        _config = config;
-        config.Save();
-        StartupRegistration.Apply(config.RunAtStartup);
-        _host.Restart(_config);
-        UpdateTrayText();
+        try
+        {
+            _config = config;
+            config.Save();
+            TryApplyStartup(config.RunAtStartup);
+            _host.Restart(_config);
+            UpdateTrayText();
+        }
+        catch (Exception ex)
+        {
+            // Saving / re-listening failed (disk, port permissions, etc.). Report it
+            // instead of letting the exception tear the process down.
+            OnLogMessage($"Apply settings failed: {ex.Message}");
+            MessageBox.Show(ex.Message, L.T("tray.balloon.title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    // Writing the HKCU Run key can fail (policy, locked hive). Startup registration is a
+    // convenience, never a reason to crash — log and carry on.
+    private void TryApplyStartup(bool enabled)
+    {
+        try
+        {
+            StartupRegistration.Apply(enabled);
+        }
+        catch (Exception ex)
+        {
+            OnLogMessage($"Startup registration failed: {ex.Message}");
+        }
     }
 
     private void Reconnect()
@@ -82,21 +106,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _trayIcon.ShowBalloonTip(2000, L.T("tray.text"), L.T("tray.balloon.reconnected"), ToolTipIcon.Info);
     }
 
-    private void OnLogMessage(string message)
-    {
-        try
-        {
-            var logDir = Path.Combine(AppContext.BaseDirectory, "logs");
-            Directory.CreateDirectory(logDir);
-            File.AppendAllText(
-                Path.Combine(logDir, "labelprinter.log"),
-                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
-        }
-        catch
-        {
-            // ignore log file errors
-        }
-    }
+    private void OnLogMessage(string message) => FileLog.Write(message);
 
     private void UpdateTrayText()
     {

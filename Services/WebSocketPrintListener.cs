@@ -133,16 +133,36 @@ public sealed class WebSocketPrintListener : IAsyncDisposable
                 }
                 else
                 {
-                    try
+                    // Print off the receive loop: printing is synchronous and can block for
+                    // seconds (slow printer, PDF rendering). Blocking here would stall the
+                    // whole message stream. PrintModel serializes concurrent jobs itself.
+                    var fmt = format;
+                    var job = printMsg;
+                    _ = Task.Run(() =>
                     {
-                        _log($"Received LabelPrint job for {format.Size}.");
-                        _printModel.PrintTo(printMsg.EplData, format.PrinterName, format.PrintType);
-                        _log($"Print job sent to {format.PrinterName}.");
-                    }
-                    catch (Exception ex)
-                    {
-                        _log($"Print job for {format.Size} failed: {ex.Message}");
-                    }
+                        // These are real jobs from the RMA server, so wait for a print slot
+                        // (up to 60s) rather than dropping — but give up eventually so a
+                        // wedged printer can't stall jobs forever.
+                        if (!PrintModel.TryBeginJob(60_000))
+                        {
+                            _log($"Print job for {fmt.Size} dropped: printer busy 60s.");
+                            return;
+                        }
+                        try
+                        {
+                            _log($"Received LabelPrint job for {fmt.Size}.");
+                            _printModel.PrintTo(job.EplData, fmt.PrinterName, fmt.PrintType);
+                            _log($"Print job sent to {fmt.PrinterName}.");
+                        }
+                        catch (Exception ex)
+                        {
+                            _log($"Print job for {fmt.Size} failed: {ex.Message}");
+                        }
+                        finally
+                        {
+                            PrintModel.EndJob();
+                        }
+                    });
                 }
             }
             else if (!string.IsNullOrWhiteSpace(message))
