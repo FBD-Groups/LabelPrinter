@@ -9,11 +9,12 @@ public sealed class AppConfig
 {
     // --- Global settings (persisted) ---
     public string LabelPrinterUrl { get; set; } = "ws://localhost:2012/websocket";
-    public bool EnableWebSocket { get; set; } = true;
+    public bool EnableWebSocket { get; set; } = false;
     public bool AllowLanAccess { get; set; }
     public int ReconnectDelaySeconds { get; set; } = 5;
     public int WebSocketConnectTimeoutSeconds { get; set; } = 10;
     public bool RunAtStartup { get; set; }
+    public string Language { get; set; } = "zh"; // "zh" or "en"
 
     public List<LabelFormat> LabelFormats { get; set; } = new();
 
@@ -93,6 +94,7 @@ public sealed class AppConfig
         var config = new AppConfig();
         root.GetSection("LabelPrinter").Bind(config);
         config.MigrateLegacy();
+        L.SetLanguage(L.Parse(config.Language));
         return config;
     }
 
@@ -109,6 +111,7 @@ public sealed class AppConfig
                 ["ReconnectDelaySeconds"] = ReconnectDelaySeconds,
                 ["WebSocketConnectTimeoutSeconds"] = WebSocketConnectTimeoutSeconds,
                 ["RunAtStartup"] = RunAtStartup,
+                ["Language"] = Language,
                 ["LabelFormats"] = LabelFormats.Select(f => new Dictionary<string, object?>
                 {
                     ["Size"] = f.Size,

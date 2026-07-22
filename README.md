@@ -19,7 +19,7 @@ ControlCode 标签打印客户端 —— Windows 系统托盘程序。
 
 | 功能 | 说明 |
 |------|------|
-| 多尺寸支持 | 固定三种尺寸 4×2 / 4×3 / 4×6，每种独立配置打印机、REST 端口、打印类型（EPL/ZPL/文本）与启用开关；其中一种可标记为默认（仅用于设置界面高亮，不影响路由） |
+| 多尺寸支持 | 固定三种尺寸 4×2 / 4×3 / 4×6，每种独立配置打印机、REST 端口、打印类型（EPL/ZPL/文本/PDF）与启用开关；其中一种可标记为默认（仅用于设置界面高亮，不影响路由） |
 | WebSocket 客户端 | 连接 RMA 服务，接收 `LabelPrint` 消息，按别名路由到对应尺寸的打印机 |
 | REST 本地接口 | 每个启用的尺寸各自监听一个端口，`POST /LabelPrint`，供本机脚本或其他程序调用 |
 | 系统托盘 | 后台常驻，托盘图标显示 WebSocket 连接状态 |
@@ -61,7 +61,7 @@ dotnet build -c Release
 4. 设置窗口顶部显示本机局域网 IP，供其他机器配置 REST 调用地址参考
 5. 为每种尺寸（4×2 / 4×3 / 4×6）选择打印机、打印类型、端口、是否启用，填写 WebSocket 地址，点击 **保存**
 
-每一行尺寸都有独立的 **测试** 按钮，发送与当前打印类型（EPL/ZPL/文本）匹配的样张，验证打印机是否正常。
+每一行尺寸都有独立的 **测试** 按钮，发送与当前打印类型（EPL/ZPL/文本/PDF）匹配的样张，验证打印机是否正常。
 
 ## 配置
 
@@ -71,7 +71,7 @@ dotnet build -c Release
 {
   "LabelPrinter": {
     "LabelPrinterUrl": "ws://your-rma-host:2012/websocket",
-    "EnableWebSocket": true,
+    "EnableWebSocket": false,
     "AllowLanAccess": false,
     "ReconnectDelaySeconds": 5,
     "WebSocketConnectTimeoutSeconds": 10,
@@ -88,7 +88,7 @@ dotnet build -c Release
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `LabelPrinterUrl` | RMA WebSocket 地址 | `ws://localhost:2012/websocket` |
-| `EnableWebSocket` | 是否启用 WebSocket 客户端 | `true` |
+| `EnableWebSocket` | 是否启用 WebSocket 客户端 | `false` |
 | `AllowLanAccess` | REST 监听地址：`true` 绑定 `http://+:<port>/`（局域网内其他机器可访问，需以管理员身份运行或提前执行 `netsh http add urlacl`）；`false` 仅绑定 `http://localhost:<port>/` | `false` |
 | `ReconnectDelaySeconds` | WebSocket 断线重连间隔（秒） | `5` |
 | `WebSocketConnectTimeoutSeconds` | WebSocket 连接超时（秒） | `10` |
@@ -148,9 +148,10 @@ P1
 
 **响应：** `200 OK` / `400` / `500`，正文为纯文本。
 
-> 打印类型（EPL/ZPL/文本）是每个尺寸的独立配置，同时决定测试样张的内容和发送方式：
+> 打印类型（EPL/ZPL/文本/PDF）是每个尺寸的独立配置，同时决定测试样张的内容和发送方式：
 > - **EPL / ZPL**：以 **RAW** 方式把指令字节原样透传给打印机（只有真实标签机 Zebra/Eltron 等能解析），多个标签用空行分隔会拆成多个任务。
 > - **文本**：通过打印机的 GDI 驱动渲染成页面（`PrintDocument`），因此在任意 Windows 打印机（Microsoft Print to PDF、激光打印机、标签机）上都能正常打印，而不仅限于标签机；换页符 `\f` 分页。（LPT 并口无驱动，仍按原始字节写入。）
+> - **PDF**：请求体须是 PDF 文件字节的 **Base64** 文本。程序用 Windows 自带的 PDF 渲染把每一页画成位图，再走打印机的 GDI 驱动输出（与 Edge 里点打印同一路径），因此普通标签机也能打出 PDF 样张。不支持直接打到 LPT 并口。仓库自带 [`samples/sample-label.pdf`](samples/sample-label.pdf) 可用于测试。
 >
 > 测试按钮与通过 WebSocket / REST 收到的真实任务，都按对应尺寸的打印类型走上述规则。
 
@@ -191,6 +192,11 @@ curl -X POST http://localhost:48210/LabelPrint \
 curl -X POST http://localhost:48212/LabelPrint \
   -H "Content-Type: application/json" \
   -d '{"epl":"N\nA20,20,0,4,1,1,N,\"Test\"\nP1\n"}'
+
+# 该尺寸打印类型设为 PDF 时 → 请求体为 PDF 文件的 Base64（示例文件见 samples/sample-label.pdf）
+curl -X POST http://localhost:48212/LabelPrint \
+  -H "Content-Type: text/plain" \
+  --data-binary "$(base64 -w0 samples/sample-label.pdf)"
 ```
 
 > 从其他机器调用时，把 `localhost` 换成设置界面顶部显示的本机 IP，并确保勾选了 **允许局域网访问**（需管理员）。

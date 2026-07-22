@@ -4,7 +4,8 @@ public enum LabelPrintType
 {
     Epl,
     Zpl,
-    Text
+    Text,
+    Pdf
 }
 
 /// <summary>

@@ -17,7 +17,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
             Text = "ControlCode Label Printer",
             Visible = true,
             ContextMenuStrip = BuildMenu()
@@ -27,9 +27,15 @@ public sealed class TrayApplicationContext : ApplicationContext
         UpdateTrayText();
         _trayIcon.ShowBalloonTip(
             3000,
-            "ControlCode Label Printer",
-            "已在系统托盘运行。双击图标可打开设置。",
+            L.T("tray.balloon.title"),
+            L.T("tray.balloon.started"),
             ToolTipIcon.Info);
+
+        L.LanguageChanged += () =>
+        {
+            _trayIcon.ContextMenuStrip = BuildMenu();
+            UpdateTrayText();
+        };
 
         var timer = new System.Windows.Forms.Timer { Interval = 2000 };
         timer.Tick += (_, _) => UpdateTrayText();
@@ -39,10 +45,10 @@ public sealed class TrayApplicationContext : ApplicationContext
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("设置...", null, (_, _) => ShowSettings());
-        menu.Items.Add("重新连接", null, (_, _) => Reconnect());
+        menu.Items.Add(L.T("tray.menu.settings"), null, (_, _) => ShowSettings());
+        menu.Items.Add(L.T("tray.menu.reconnect"), null, (_, _) => Reconnect());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => ExitThread());
+        menu.Items.Add(L.T("tray.menu.exit"), null, (_, _) => ExitThread());
         return menu;
     }
 
@@ -73,7 +79,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void Reconnect()
     {
         _host.Restart(_config);
-        _trayIcon.ShowBalloonTip(2000, "Label Printer", "已重新连接。", ToolTipIcon.Info);
+        _trayIcon.ShowBalloonTip(2000, L.T("tray.text"), L.T("tray.balloon.reconnected"), ToolTipIcon.Info);
     }
 
     private void OnLogMessage(string message)
@@ -95,9 +101,9 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void UpdateTrayText()
     {
         var ws = !_config.EnableWebSocket
-            ? "WS:off"
-            : _host.IsWebSocketConnected ? "WS:已连接" : "WS:未连接";
-        _trayIcon.Text = $"Label Printer | {ws}";
+            ? L.T("tray.ws.disabled")
+            : _host.IsWebSocketConnected ? L.T("tray.ws.on") : L.T("tray.ws.off");
+        _trayIcon.Text = $"{L.T("tray.text")} | WS:{ws}";
     }
 
     protected override void ExitThreadCore()
