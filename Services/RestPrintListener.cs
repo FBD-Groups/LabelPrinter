@@ -95,6 +95,10 @@ public sealed class RestPrintListener : IDisposable
         }
     }
 
+    // Cap the accepted request body so a huge (or malicious) upload can't balloon memory
+    // before we even start printing. 10 MB is far above any real label payload.
+    private const long MaxRequestBodyBytes = 10L * 1024 * 1024;
+
     private void HandleRequest(HttpListenerContext ctx)
     {
         try
@@ -107,25 +111,44 @@ public sealed class RestPrintListener : IDisposable
                 return;
             }
 
-            using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
-            var body = reader.ReadToEnd();
-            string data = body;
-
-            if (ctx.Request.ContentType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true)
+            // Shed load rather than pile up unbounded work: if all print slots are busy,
+            // reject fast instead of buffering yet another body and queueing behind them.
+            if (!PrintModel.TryBeginJob())
             {
-                var doc = JsonDocument.Parse(body);
-                data = doc.RootElement.GetProperty("epl").GetString() ?? "";
-            }
-
-            if (string.IsNullOrWhiteSpace(data))
-            {
-                WriteResponse(ctx, 400, "Label body is required.");
+                _log($"REST [{_format.Size}] busy — rejected (503).");
+                WriteResponse(ctx, 503, "Printer busy, retry shortly.");
                 return;
             }
 
-            _printModel.PrintTo(data, _format.PrinterName, _format.PrintType);
-            _log($"REST [{_format.Size}] job completed.");
-            WriteResponse(ctx, 200, "OK");
+            try
+            {
+                if (!TryReadBody(ctx, MaxRequestBodyBytes, out var body))
+                {
+                    WriteResponse(ctx, 413, $"Request body exceeds {MaxRequestBodyBytes / (1024 * 1024)} MB limit.");
+                    return;
+                }
+
+                string data = body;
+                if (ctx.Request.ContentType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    var doc = JsonDocument.Parse(body);
+                    data = doc.RootElement.GetProperty("epl").GetString() ?? "";
+                }
+
+                if (string.IsNullOrWhiteSpace(data))
+                {
+                    WriteResponse(ctx, 400, "Label body is required.");
+                    return;
+                }
+
+                _printModel.PrintTo(data, _format.PrinterName, _format.PrintType);
+                _log($"REST [{_format.Size}] job completed.");
+                WriteResponse(ctx, 200, "OK");
+            }
+            finally
+            {
+                PrintModel.EndJob();
+            }
         }
         catch (Exception ex)
         {
@@ -134,14 +157,48 @@ public sealed class RestPrintListener : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads the request body with a hard byte cap. Returns false (without buffering the
+    /// whole thing) as soon as the declared or actual size exceeds <paramref name="maxBytes"/>.
+    /// </summary>
+    private static bool TryReadBody(HttpListenerContext ctx, long maxBytes, out string body)
+    {
+        body = "";
+        if (ctx.Request.ContentLength64 > maxBytes)
+            return false;
+
+        using var ms = new MemoryStream();
+        var buffer = new byte[8192];
+        long total = 0;
+        int read;
+        while ((read = ctx.Request.InputStream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+                return false;
+            ms.Write(buffer, 0, read);
+        }
+
+        body = (ctx.Request.ContentEncoding ?? Encoding.UTF8).GetString(ms.ToArray());
+        return true;
+    }
+
     private static void WriteResponse(HttpListenerContext ctx, int status, string text)
     {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = "text/plain; charset=utf-8";
-        ctx.Response.ContentLength64 = bytes.Length;
-        ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
-        ctx.Response.Close();
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            ctx.Response.StatusCode = status;
+            ctx.Response.ContentType = "text/plain; charset=utf-8";
+            ctx.Response.ContentLength64 = bytes.Length;
+            ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+            ctx.Response.Close();
+        }
+        catch
+        {
+            // The client may have disconnected, or the listener was stopped mid-response.
+            // This runs on a background Task; swallow so a failed write can't escape.
+        }
     }
 
     public void Dispose() => Stop();

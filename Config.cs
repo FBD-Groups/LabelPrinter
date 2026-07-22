@@ -86,13 +86,24 @@ public sealed class AppConfig
 
     public static AppConfig Load()
     {
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-
-        var root = builder.Build();
         var config = new AppConfig();
-        root.GetSection("LabelPrinter").Bind(config);
+        try
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
+            var root = builder.Build();
+            root.GetSection("LabelPrinter").Bind(config);
+        }
+        catch (Exception ex)
+        {
+            // A corrupt/half-written appsettings.json must not stop the app from starting.
+            // Log it and fall back to defaults; the user can re-save from the settings UI.
+            FileLog.Write($"Config load failed, falling back to defaults: {ex.Message}");
+            config = new AppConfig();
+        }
+
         config.MigrateLegacy();
         L.SetLanguage(L.Parse(config.Language));
         return config;
@@ -130,6 +141,13 @@ public sealed class AppConfig
             WriteIndented = true,
             Converters = { new JsonStringEnumConverter() }
         };
-        File.WriteAllText(path, JsonSerializer.Serialize(root, options));
+        var json = JsonSerializer.Serialize(root, options);
+
+        // Atomic write: serialize to a temp file first, then swap it into place. A crash
+        // mid-write leaves the old (valid) file intact instead of a truncated one that
+        // would fail to parse on next launch.
+        var tmp = path + ".tmp";
+        File.WriteAllText(tmp, json);
+        File.Move(tmp, path, overwrite: true);
     }
 }
