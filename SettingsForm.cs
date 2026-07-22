@@ -10,6 +10,7 @@ public partial class SettingsForm : Form
     private readonly PrintHostService _host;
     private readonly List<FormatRow> _rows = new();
     private readonly List<string> _printerChoices = new();
+    private readonly List<Label> _headerLabels = new();
     private string _localIp = "127.0.0.1";
 
     public event Action<AppConfig>? ConfigSaved;
@@ -19,6 +20,13 @@ public partial class SettingsForm : Form
         _config = config;
         _host = host;
         InitializeComponent();
+        cboLanguage.SelectedIndexChanged += (_, _) =>
+        {
+            if (cboLanguage.SelectedIndex < 0)
+                return;
+            L.SetLanguage(cboLanguage.SelectedIndex == 1 ? AppLanguage.En : AppLanguage.Zh);
+        };
+        L.LanguageChanged += ApplyLanguage;
         LoadUi();
         _host.LogMessage += AppendLog;
     }
@@ -26,7 +34,6 @@ public partial class SettingsForm : Form
     private void LoadUi()
     {
         _localIp = NetworkHelper.GetLocalIPv4();
-        lblHost.Text = $"本机地址: {_localIp}";
 
         foreach (string name in PrinterSettings.InstalledPrinters)
             _printerChoices.Add(name);
@@ -39,25 +46,31 @@ public partial class SettingsForm : Form
         txtWsUrl.Enabled = chkEnableWebSocket.Checked;
         chkRunAtStartup.Checked = _config.RunAtStartup;
         chkAllowLan.Checked = _config.AllowLanAccess;
+        cboLanguage.SelectedIndex = L.Current == AppLanguage.En ? 1 : 0;
 
         BuildHeaderRow();
         foreach (var format in _config.LabelFormats)
             AddFormatRow(format);
+
+        FitFormatsTable();
+        ApplyLanguage();
     }
 
     private void BuildHeaderRow()
     {
-        string[] headers = { "默认", "尺寸", "调用链接", "打印机", "类型", "端口", "启用", "" };
-        for (var col = 0; col < headers.Length; col++)
+        EnsureRowStyle(0, SizeType.Absolute, HeaderRowHeight);
+
+        for (var col = 0; col < 8; col++)
         {
             var lbl = new Label
             {
-                Text = headers[col],
                 AutoSize = true,
                 Anchor = AnchorStyles.Left,
                 ForeColor = SystemColors.GrayText,
-                Margin = new Padding(3, 3, 3, 3)
+                Margin = new Padding(3, 4, 3, 2),
+                TextAlign = ContentAlignment.MiddleLeft
             };
+            _headerLabels.Add(lbl);
             tlpFormats.Controls.Add(lbl, col, 0);
         }
     }
@@ -66,12 +79,12 @@ public partial class SettingsForm : Form
     {
         var rowIndex = tlpFormats.RowCount;
         tlpFormats.RowCount = rowIndex + 1;
-        tlpFormats.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+        EnsureRowStyle(rowIndex, SizeType.Absolute, DataRowHeight);
 
         var rdoDefault = new RadioButton { AutoSize = true, Checked = format.IsDefault, Anchor = AnchorStyles.Left };
         var lblSize = new Label { Text = format.Size, AutoSize = true, Anchor = AnchorStyles.Left };
 
-        var numPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Clamp(format.Port, 1, 65535), Anchor = AnchorStyles.Left, Width = 70 };
+        var numPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Clamp(format.Port, 1, 65535), Anchor = AnchorStyles.Left, Width = 90 };
 
         var txtUrl = new TextBox
         {
@@ -97,12 +110,26 @@ public partial class SettingsForm : Form
         cboPrinter.SelectedIndex = idx >= 0 ? idx : (cboPrinter.Items.Count > 0 ? 0 : -1);
 
         var cboType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right };
-        cboType.Items.AddRange(new object[] { "EPL", "ZPL", "文本" });
+        cboType.Items.AddRange(new object[] { "EPL", "ZPL", L.T("type.text"), "PDF" });
         cboType.SelectedIndex = (int)format.PrintType;
 
         var chkEnabled = new CheckBox { Checked = format.Enabled, AutoSize = true, Anchor = AnchorStyles.Left };
 
-        var btnTest = new Button { Text = "测试", Anchor = AnchorStyles.Left, Width = 56 };
+        // Fixed height — TableLayoutPanel + Button.AutoSize makes the LAST row's button
+        // grow to fill leftover panel height (the huge 4x6 Test you just saw).
+        var btnTest = new Button
+        {
+            Text = L.T("btn.test"),
+            AutoSize = false,
+            Font = new Font("Segoe UI", 8F),
+            Size = new Size(72, 26),
+            Margin = new Padding(3, 3, 3, 3),
+            Padding = new Padding(8, 0, 8, 0),
+            FlatStyle = FlatStyle.Standard,
+            UseVisualStyleBackColor = true,
+            Anchor = AnchorStyles.Left
+        };
+        SizeTestButton(btnTest);
 
         var row = new FormatRow(format.Size, rdoDefault, lblSize, txtUrl, cboPrinter, cboType, numPort, chkEnabled, btnTest);
         btnTest.Click += (_, _) => TestRow(row);
@@ -118,7 +145,45 @@ public partial class SettingsForm : Form
         tlpFormats.Controls.Add(btnTest, 7, rowIndex);
     }
 
+    // Designer Absolute sizes get AutoScale'd; RowStyles we add at runtime do not.
+    // Derive heights from the live font so DPI won't clip headers or leave a hollow gap.
+    private float HeaderRowHeight => Math.Max(26, Font.Height + 10);
+    private float DataRowHeight => Math.Max(32, Font.Height + 18);
+
+    private void EnsureRowStyle(int index, SizeType sizeType, float height)
+    {
+        while (tlpFormats.RowStyles.Count <= index)
+            tlpFormats.RowStyles.Add(new RowStyle(sizeType, height));
+        tlpFormats.RowStyles[index] = new RowStyle(sizeType, height);
+    }
+
+    /// <summary>
+    /// Shrink the formats table to exactly its Absolute rows, then park the controls
+    /// below it so we don't keep the old Y=260 gap from when the panel was taller.
+    /// </summary>
+    private void FitFormatsTable()
+    {
+        float total = 0;
+        for (var i = 0; i < tlpFormats.RowCount && i < tlpFormats.RowStyles.Count; i++)
+            total += tlpFormats.RowStyles[i].Height;
+        tlpFormats.Height = (int)Math.Ceiling(total) + 2;
+
+        var y = tlpFormats.Bottom + 14;
+        chkRunAtStartup.Top = y;
+        btnSave.Top = y - 2;
+        chkAllowLan.Top = chkRunAtStartup.Bottom + 6;
+        lblLog.Top = chkAllowLan.Bottom + 12;
+        txtLog.Top = lblLog.Bottom + 4;
+    }
+
     private string BuildUrl(int port) => $"http://{_localIp}:{port}/LabelPrint";
+
+    private static void SizeTestButton(Button button)
+    {
+        var textWidth = TextRenderer.MeasureText(button.Text, button.Font).Width;
+        button.AutoSize = false;
+        button.Size = new Size(Math.Max(72, textWidth + 24), 26);
+    }
 
     private async void TestRow(FormatRow row)
     {
@@ -139,7 +204,8 @@ public partial class SettingsForm : Form
         // immediately instead of looking like nothing happened.
         row.Test.Enabled = false;
         var originalText = row.Test.Text;
-        row.Test.Text = "打印中...";
+        row.Test.Text = L.T("btn.testing");
+        SizeTestButton(row.Test);
         try
         {
             await Task.Run(() => new PrintModel().PrintTo(sample, printerName, type));
@@ -153,6 +219,7 @@ public partial class SettingsForm : Form
         finally
         {
             row.Test.Text = originalText;
+            SizeTestButton(row.Test);
             row.Test.Enabled = true;
         }
     }
@@ -181,6 +248,7 @@ public partial class SettingsForm : Form
         _config.EnableWebSocket = chkEnableWebSocket.Checked;
         _config.RunAtStartup = chkRunAtStartup.Checked;
         _config.AllowLanAccess = chkAllowLan.Checked;
+        _config.Language = L.Code(L.Current);
 
         foreach (var row in _rows)
         {
@@ -191,6 +259,48 @@ public partial class SettingsForm : Form
             format.Enabled = row.Enabled.Checked;
             format.IsDefault = row.Default.Checked;
         }
+    }
+
+    private void ApplyLanguage()
+    {
+        Text = L.T("title");
+        lblHost.Text = $"{L.T("host")}: {_localIp}";
+        lblWsUrl.Text = L.T("websocket");
+        chkEnableWebSocket.Text = L.T("enable");
+        chkRunAtStartup.Text = L.T("chk.runAtStartup");
+        chkAllowLan.Text = L.T("chk.allowLan");
+        btnSave.Text = L.T("btn.save");
+        lblLanguage.Text = L.T("language");
+        // Keep the Language label tucked against the combo on the right edge.
+        lblLanguage.Left = cboLanguage.Left - lblLanguage.PreferredWidth - 8;
+        lblLanguage.Top = cboLanguage.Top + (cboLanguage.Height - lblLanguage.PreferredHeight) / 2;
+        lblLog.Text = L.T("log.label");
+
+        string[] headers =
+        {
+            L.T("col.default"), L.T("col.size"), L.T("col.url"), L.T("col.printer"),
+            L.T("col.type"), L.T("col.port"), L.T("col.enabled"), ""
+        };
+        for (var i = 0; i < _headerLabels.Count && i < headers.Length; i++)
+            _headerLabels[i].Text = headers[i];
+
+        foreach (var row in _rows)
+        {
+            if (row.Test.Enabled)
+            {
+                row.Test.Text = L.T("btn.test");
+                SizeTestButton(row.Test);
+            }
+
+            var selected = row.Type.SelectedIndex;
+            row.Type.Items.Clear();
+            row.Type.Items.AddRange(new object[] { "EPL", "ZPL", L.T("type.text"), "PDF" });
+            row.Type.SelectedIndex = selected;
+        }
+
+        var langIndex = L.Current == AppLanguage.En ? 1 : 0;
+        if (cboLanguage.SelectedIndex != langIndex)
+            cboLanguage.SelectedIndex = langIndex;
     }
 
     private void AppendLog(string message)
@@ -216,6 +326,7 @@ public partial class SettingsForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _host.LogMessage -= AppendLog;
+        L.LanguageChanged -= ApplyLanguage;
         base.OnFormClosed(e);
     }
 

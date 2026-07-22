@@ -8,9 +8,9 @@ public sealed class PrintModel
     ///
     /// EPL/ZPL are sent RAW (bytes forwarded verbatim; only a real label printer can
     /// interpret them), and multiple labels separated by blank lines become separate
-    /// jobs. Text is sent with the Windows "TEXT" data type as a single job, so it is
-    /// rendered into pages by the printer driver — this lets it print on ordinary
-    /// GDI printers (e.g. Microsoft Print to PDF), not just label printers.
+    /// jobs. Text and PDF are rendered through the Windows GDI print path (like Edge /
+    /// Notepad), so they work on ordinary drivers — including label printers that do
+    /// not understand raw PDF bytes.
     /// </summary>
     public void PrintTo(string data, string printerName, LabelPrintType printType)
     {
@@ -29,6 +29,18 @@ public sealed class PrintModel
                 LptPrinter.Print(printerName, data.Replace("\r\n", "\n").Replace("\n", "\r\n"));
             else
                 TextPagePrinter.Print(printerName, data);
+            return;
+        }
+
+        if (printType == LabelPrintType.Pdf)
+        {
+            // Base64 PDF → render pages → GDI print. Raw PDF dump fails on most label
+            // printers (they only speak ZPL/EPL); Edge "Print" works because it renders.
+            if (isLpt)
+                throw new InvalidOperationException("PDF printing requires a Windows printer; LPT raw ports are not supported.");
+
+            var pdfBytes = Convert.FromBase64String(data);
+            PdfPagePrinter.Print(printerName, pdfBytes);
             return;
         }
 

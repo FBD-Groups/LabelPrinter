@@ -36,4 +36,17 @@ public class SampleLabelGeneratorTests
         Assert.Contains("TEST 4x3", text);
         Assert.EndsWith("\f", text);
     }
+
+    [Fact]
+    public void Pdf_generates_base64_of_a_valid_pdf_containing_size()
+    {
+        var base64 = SampleLabelGenerator.Generate(LabelPrintType.Pdf, "4x6");
+        var bytes = Convert.FromBase64String(base64);
+        var text = System.Text.Encoding.ASCII.GetString(bytes);
+
+        Assert.StartsWith("%PDF-1.4", text);
+        Assert.Contains("/MediaBox [0 0 288 432]", text); // 4in x 6in at 72pt/in
+        Assert.Contains("(TEST 4x6)", text);
+        Assert.EndsWith("%%EOF", text);
+    }
 }
