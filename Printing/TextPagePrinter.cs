@@ -16,7 +16,7 @@ public static class TextPagePrinter
         doc.PrinterSettings.PrinterName = printerName;
         if (!doc.PrinterSettings.IsValid)
             throw new InvalidOperationException($"Printer '{printerName}' is not available.");
-        doc.DocumentName = "ControlCode Label";
+        doc.DocumentName = "Label Printer Service";
 
         var pages = text
             .Replace("\r\n", "\n")

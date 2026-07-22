@@ -60,7 +60,7 @@ public static class RawPrinterHelper
         {
             var di = new DOCINFOW
             {
-                pDocName = "ControlCode Label",
+                pDocName = "Label Printer Service",
                 pDataType = "RAW"
             };
 

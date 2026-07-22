@@ -148,7 +148,7 @@ partial class SettingsForm
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         Name = "SettingsForm";
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "ControlCode Label Printer - 设置";
+        Text = "Label Printer Service - 设置";
         FormClosing += SettingsForm_FormClosing;
         ResumeLayout(false);
         PerformLayout();
