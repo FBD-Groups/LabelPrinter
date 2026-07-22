@@ -102,7 +102,7 @@ dotnet build -c Release
 | `Size` | 标签尺寸标识，固定为 `4x2` / `4x3` / `4x6` | — |
 | `Alias` | WebSocket 消息中的别名，用于路由到该尺寸 | 同 `Size` |
 | `PrinterName` | 目标打印机：Windows 打印机名称，或并口 `LPT1` / `LPT2` / `LPT3` | 空 |
-| `PrintType` | 打印类型：`Epl` / `Zpl` / `Text` | `Epl` |
+| `PrintType` | 打印类型：`Epl` / `Zpl` / `Text` / `Pdf` | `Epl` |
 | `Port` | 该尺寸独立的 REST 监听端口 | `4x2`=48210，`4x3`=48211，`4x6`=48212 |
 | `Enabled` | 是否启用该尺寸（禁用则不监听 REST，也不会被 WebSocket 路由到） | `true` |
 | `IsDefault` | 是否为默认尺寸（仅设置界面单选高亮，不影响打印路由） | 仅 `4x6` 为 `true` |
