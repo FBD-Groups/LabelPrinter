@@ -9,3 +9,4 @@ logs/
 appsettings.Development.json
 /.github
 .superpowers/
+docs/superpowers/
