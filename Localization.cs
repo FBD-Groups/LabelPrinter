@@ -52,6 +52,7 @@ public static class L
         ["btn.save"] = ("保存并应用", "Save && Apply"),
         ["language"] = ("Language", "Language"),
         ["log.label"] = ("Log:", "Log:"),
+        ["lodop.label"] = ("MZL 兼容", "MZL Support"),
 
         ["tray.text"] = ("Label Printer", "Label Printer"),
         ["tray.ws.on"] = ("已连接", "connected"),

@@ -9,6 +9,7 @@ public sealed class PrintHostService : IDisposable
     private PrintModel? _printModel;
     private readonly List<RestPrintListener> _restListeners = new();
     private WebSocketPrintListener? _webSocketListener;
+    private LodopCompatListener? _lodopCompatListener;
 
     public event Action<string>? LogMessage;
 
@@ -34,8 +35,19 @@ public sealed class PrintHostService : IDisposable
             _webSocketListener.Start();
         }
 
+        if (_config.LodopCompat.Enabled)
+        {
+            _lodopCompatListener = new LodopCompatListener(_config.LodopCompat, _printModel, Log);
+            _lodopCompatListener.Start();
+        }
+
         var ports = string.Join(", ", _config.LabelFormats.Where(f => f.Enabled).Select(f => $"{f.Size}:{f.Port}"));
-        LogMessage?.Invoke($"Running. Ports: {ports}");
+        var lodopStatus = !_config.LodopCompat.Enabled
+            ? "off"
+            : _lodopCompatListener!.BoundPorts.Count > 0
+                ? string.Join("+", _lodopCompatListener.BoundPorts)
+                : "FAILED (see log above)";
+        LogMessage?.Invoke($"Running. Ports: {ports}. Lodop-compat: {lodopStatus}.");
     }
 
     public void Restart(AppConfig config) => Start(config);
@@ -49,6 +61,9 @@ public sealed class PrintHostService : IDisposable
         foreach (var listener in _restListeners)
             listener.Dispose();
         _restListeners.Clear();
+
+        _lodopCompatListener?.Dispose();
+        _lodopCompatListener = null;
 
         _printModel = null;
     }

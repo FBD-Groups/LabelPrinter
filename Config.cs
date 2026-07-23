@@ -17,6 +17,7 @@ public sealed class AppConfig
     public string Language { get; set; } = "zh"; // "zh" or "en"
 
     public List<LabelFormat> LabelFormats { get; set; } = new();
+    public LodopCompatConfig LodopCompat { get; set; } = new();
 
     // --- Legacy fields: only read for migration, never written by Save() ---
     public string PrinterName { get; set; } = "";
@@ -132,7 +133,12 @@ public sealed class AppConfig
                     ["Port"] = f.Port,
                     ["Enabled"] = f.Enabled,
                     ["IsDefault"] = f.IsDefault
-                }).ToList()
+                }).ToList(),
+                ["LodopCompat"] = new Dictionary<string, object?>
+                {
+                    ["Enabled"] = LodopCompat.Enabled,
+                    ["PrinterName"] = LodopCompat.PrinterName
+                }
             }
         };
 
@@ -150,4 +156,16 @@ public sealed class AppConfig
         File.WriteAllText(tmp, json);
         File.Move(tmp, path, overwrite: true);
     }
+}
+
+/// <summary>
+/// Settings for the C-Lodop compatibility shim: no Size/Alias/PrintType/Port, since it
+/// isn't one of the fixed label sizes — it's a single always-8000/18000 endpoint that
+/// stands in for a real C-Lodop install so an existing caller (e.g. MZL) can print PDFs
+/// through LabelPrinter without any change on its side. See Services/LodopCompatListener.
+/// </summary>
+public sealed class LodopCompatConfig
+{
+    public bool Enabled { get; set; }
+    public string PrinterName { get; set; } = "";
 }

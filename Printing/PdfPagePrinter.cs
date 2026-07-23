@@ -45,13 +45,23 @@ public static class PdfPagePrinter
             doc.PrintPage += (_, e) =>
             {
                 var img = images[pageIndex];
-                var bounds = e.PageBounds;
-                var scale = Math.Min((float)bounds.Width / img.Width, (float)bounds.Height / img.Height);
+
+                // Scale against PrintableArea (the driver-reported region that accounts for
+                // the printer's actual hardware margins) so the image isn't oversized versus
+                // what the printer can actually render — but anchor at (0,0), not centered
+                // inside it. C-Lodop's own ADD_PRINT_PDF(0, 0, "100%", "100%", ...) call is
+                // top/left-anchored at the page origin with no margin; centering here added
+                // a visible gap at the top and left that C-Lodop's output doesn't have.
+                //
+                // NOTE: this has been observed to print ~5 degrees rotated on at least one
+                // printer/paper-size combination. Root cause not yet found — kept as-is
+                // per explicit instruction to prioritize matching C-Lodop's fit-to-page
+                // look over avoiding the rotation for now.
+                var printable = e.PageSettings!.PrintableArea;
+                var scale = Math.Min(printable.Width / img.Width, printable.Height / img.Height);
                 var w = img.Width * scale;
                 var h = img.Height * scale;
-                var x = bounds.Left + (bounds.Width - w) / 2f;
-                var y = bounds.Top + (bounds.Height - h) / 2f;
-                e.Graphics!.DrawImage(img, x, y, w, h);
+                e.Graphics!.DrawImage(img, 0, 0, w, h);
                 pageIndex++;
                 e.HasMorePages = pageIndex < images.Count;
             };
