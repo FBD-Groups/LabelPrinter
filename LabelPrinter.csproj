@@ -21,4 +21,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <!-- Compiled into the exe so the Lodop-compat "Test" button's sample PDF works from
+         any install location, not just when run from the repo (loose files under
+         samples/ are not copied to the output/install directory). -->
+    <EmbeddedResource Include="samples\sample-label.pdf">
+      <LogicalName>LabelPrinter.sample-label.pdf</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

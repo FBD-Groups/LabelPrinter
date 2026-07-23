@@ -1,4 +1,6 @@
 using System.Drawing.Printing;
+using System.Net.Http;
+using System.Text;
 using LabelPrinter.Printing;
 using LabelPrinter.Services;
 
@@ -12,6 +14,12 @@ public partial class SettingsForm : Form
     private readonly List<string> _printerChoices = new();
     private readonly List<Label> _headerLabels = new();
     private string _localIp = "127.0.0.1";
+
+    // Lodop-compat row controls — kept separate from FormatRow/_rows since this row has no
+    // Size/Alias/PrintType/Port (see LodopCompatConfig for why).
+    private ComboBox _lodopPrinterCombo = null!;
+    private CheckBox _lodopEnabledCheckBox = null!;
+    private Button _lodopTestButton = null!;
 
     public event Action<AppConfig>? ConfigSaved;
 
@@ -51,6 +59,7 @@ public partial class SettingsForm : Form
         BuildHeaderRow();
         foreach (var format in _config.LabelFormats)
             AddFormatRow(format);
+        AddLodopCompatRow(_config.LodopCompat);
 
         FitFormatsTable();
         ApplyLanguage();
@@ -143,6 +152,132 @@ public partial class SettingsForm : Form
         tlpFormats.Controls.Add(numPort, 5, rowIndex);
         tlpFormats.Controls.Add(chkEnabled, 6, rowIndex);
         tlpFormats.Controls.Add(btnTest, 7, rowIndex);
+    }
+
+    /// <summary>
+    /// One extra row in the same tlpFormats grid for the C-Lodop compatibility shim
+    /// (stands in for a real C-Lodop install so callers like MZL's lodop_print.js can
+    /// print PDFs through LabelPrinter unchanged — see Services/LodopCompatListener).
+    /// It isn't a label size, so most columns are blank: no Default radio, no Type, and
+    /// no editable Port — MZL's lodop_print.js has 8000/18000 hardcoded, so a
+    /// user-editable port here would just silently stop working.
+    /// </summary>
+    private void AddLodopCompatRow(LodopCompatConfig config)
+    {
+        var rowIndex = tlpFormats.RowCount;
+        tlpFormats.RowCount = rowIndex + 1;
+        EnsureRowStyle(rowIndex, SizeType.Absolute, DataRowHeight);
+
+        var lblSize = new Label { Text = "Lodop", AutoSize = true, Anchor = AnchorStyles.Left };
+
+        var txtUrl = new TextBox
+        {
+            ReadOnly = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Text = "http://localhost:8000",
+            BackColor = SystemColors.Control,
+            BorderStyle = BorderStyle.None
+        };
+
+        _lodopPrinterCombo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            DropDownWidth = 320
+        };
+        foreach (var choice in _printerChoices)
+            _lodopPrinterCombo.Items.Add(choice);
+        var idx = _lodopPrinterCombo.Items.IndexOf(config.PrinterName);
+        if (idx < 0 && !string.IsNullOrEmpty(config.PrinterName))
+            idx = _lodopPrinterCombo.Items.Add(config.PrinterName);
+        _lodopPrinterCombo.SelectedIndex = idx >= 0 ? idx : (_lodopPrinterCombo.Items.Count > 0 ? 0 : -1);
+
+        _lodopEnabledCheckBox = new CheckBox { Checked = config.Enabled, AutoSize = true, Anchor = AnchorStyles.Left };
+
+        _lodopTestButton = new Button
+        {
+            Text = L.T("btn.test"),
+            AutoSize = false,
+            Font = new Font("Segoe UI", 8F),
+            Size = new Size(72, 26),
+            Margin = new Padding(3, 3, 3, 3),
+            Padding = new Padding(8, 0, 8, 0),
+            FlatStyle = FlatStyle.Standard,
+            UseVisualStyleBackColor = true,
+            Anchor = AnchorStyles.Left
+        };
+        SizeTestButton(_lodopTestButton);
+        _lodopTestButton.Click += (_, _) => TestLodopRow();
+
+        tlpFormats.Controls.Add(lblSize, 1, rowIndex);
+        tlpFormats.Controls.Add(txtUrl, 2, rowIndex);
+        tlpFormats.Controls.Add(_lodopPrinterCombo, 3, rowIndex);
+        tlpFormats.Controls.Add(_lodopEnabledCheckBox, 6, rowIndex);
+        tlpFormats.Controls.Add(_lodopTestButton, 7, rowIndex);
+    }
+
+    private async void TestLodopRow()
+    {
+        var printerName = (string?)_lodopPrinterCombo.SelectedItem ?? "";
+        if (string.IsNullOrWhiteSpace(printerName))
+        {
+            MessageBox.Show(this, "请先为 Lodop 兼容行选择打印机。", "Label Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _lodopTestButton.Enabled = false;
+        var originalText = _lodopTestButton.Text;
+        _lodopTestButton.Text = L.T("btn.testing");
+        SizeTestButton(_lodopTestButton);
+
+        // Exercise the REAL path (JS-equivalent HTTP call -> fetch pdfUrl -> PrintTo), not
+        // a shortcut straight to PrintModel — the bugs worth catching here are exactly the
+        // ones a shortcut would hide (absolute URL, CORS, JSON body). If 8000/18000 are
+        // already bound (the real listener is enabled and running), our own bind just
+        // fails and BoundPorts is empty; we fall back to assuming 8000 is that live one.
+        LodopCompatListener? tempListener = null;
+        try
+        {
+            var tempConfig = new LodopCompatConfig { PrinterName = printerName };
+            tempListener = new LodopCompatListener(tempConfig, new PrintModel(), AppendLog);
+            await Task.Run(() => tempListener.Start());
+            var port = tempListener.BoundPorts.Count > 0 ? tempListener.BoundPorts[0] : 8000;
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            var content = new StringContent(
+                $$"""{"pdfUrl":"http://localhost:{{port}}/_test_sample.pdf"}""",
+                Encoding.UTF8, "application/json");
+            var response = await http.PostAsync($"http://localhost:{port}/lodop_print", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                AppendLog("Lodop-compat test: printed sample PDF.");
+                MessageBox.Show(this, "测试成功。", "Label Printer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else if ((int)response.StatusCode == 503)
+            {
+                AppendLog("Lodop-compat test: printer busy (503).");
+                MessageBox.Show(this, "打印机忙，请稍后重试。", "Label Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else
+            {
+                var text = await response.Content.ReadAsStringAsync();
+                AppendLog($"Lodop-compat test failed: {(int)response.StatusCode} {text}");
+                MessageBox.Show(this, text, "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Lodop-compat test failed: {ex.Message}");
+            MessageBox.Show(this, ex.Message, "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            tempListener?.Dispose();
+            _lodopTestButton.Text = originalText;
+            SizeTestButton(_lodopTestButton);
+            _lodopTestButton.Enabled = true;
+        }
     }
 
     // Designer Absolute sizes get AutoScale'd; RowStyles we add at runtime do not.
@@ -259,6 +394,9 @@ public partial class SettingsForm : Form
             format.Enabled = row.Enabled.Checked;
             format.IsDefault = row.Default.Checked;
         }
+
+        _config.LodopCompat.PrinterName = (string?)_lodopPrinterCombo.SelectedItem ?? "";
+        _config.LodopCompat.Enabled = _lodopEnabledCheckBox.Checked;
     }
 
     private void ApplyLanguage()
@@ -296,6 +434,12 @@ public partial class SettingsForm : Form
             row.Type.Items.Clear();
             row.Type.Items.AddRange(new object[] { "EPL", "ZPL", L.T("type.text"), "PDF" });
             row.Type.SelectedIndex = selected;
+        }
+
+        if (_lodopTestButton.Enabled)
+        {
+            _lodopTestButton.Text = L.T("btn.test");
+            SizeTestButton(_lodopTestButton);
         }
 
         var langIndex = L.Current == AppLanguage.En ? 1 : 0;
