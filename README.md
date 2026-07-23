@@ -12,7 +12,13 @@
 
 设置界面：顶部显示本机局域网 IP，每行一种尺寸，含默认标记、调用链接（`http://ip:端口/LabelPrint`）、打印机、类型、端口、启用开关与独立测试按钮。
 
+## 下载
+
+不需要自己编译：在 [Releases 页面](https://github.com/FBD-Groups/LabelPrinter/releases/latest) 下载最新的 `LabelPrinter-win-x64.zip`，解压后直接运行 `LabelPrinter.exe` 即可——自包含发布，已内置 .NET 8 运行时，目标机器无需额外安装任何东西。
+
 ## 环境要求
+
+从源码构建（非必须，仅当你要修改代码时）：
 
 - Windows 10 / 11
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
