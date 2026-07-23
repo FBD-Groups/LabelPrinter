@@ -17,6 +17,7 @@ public partial class SettingsForm : Form
 
     // Lodop-compat row controls — kept separate from FormatRow/_rows since this row has no
     // Size/Alias/PrintType/Port (see LodopCompatConfig for why).
+    private Label _lodopSizeLabel = null!;
     private ComboBox _lodopPrinterCombo = null!;
     private CheckBox _lodopEnabledCheckBox = null!;
     private Button _lodopTestButton = null!;
@@ -158,9 +159,10 @@ public partial class SettingsForm : Form
     /// One extra row in the same tlpFormats grid for the C-Lodop compatibility shim
     /// (stands in for a real C-Lodop install so callers like MZL's lodop_print.js can
     /// print PDFs through LabelPrinter unchanged — see Services/LodopCompatListener).
-    /// It isn't a label size, so most columns are blank: no Default radio, no Type, and
-    /// no editable Port — MZL's lodop_print.js has 8000/18000 hardcoded, so a
-    /// user-editable port here would just silently stop working.
+    /// It isn't a label size, so there's no Default radio and Type/Port are fixed
+    /// read-only labels rather than editable controls — MZL's lodop_print.js has
+    /// 8000/18000 hardcoded, so a user-editable port here would just silently stop
+    /// working, but it's still shown so it's not a mystery why there's no control there.
     /// </summary>
     private void AddLodopCompatRow(LodopCompatConfig config)
     {
@@ -168,7 +170,7 @@ public partial class SettingsForm : Form
         tlpFormats.RowCount = rowIndex + 1;
         EnsureRowStyle(rowIndex, SizeType.Absolute, DataRowHeight);
 
-        var lblSize = new Label { Text = "Lodop", AutoSize = true, Anchor = AnchorStyles.Left };
+        _lodopSizeLabel = new Label { Text = L.T("lodop.label"), AutoSize = true, Anchor = AnchorStyles.Left };
 
         var txtUrl = new TextBox
         {
@@ -192,6 +194,17 @@ public partial class SettingsForm : Form
             idx = _lodopPrinterCombo.Items.Add(config.PrinterName);
         _lodopPrinterCombo.SelectedIndex = idx >= 0 ? idx : (_lodopPrinterCombo.Items.Count > 0 ? 0 : -1);
 
+        // Read-only — type and ports are fixed (see class remarks on AddLodopCompatRow),
+        // but still shown so it's not a mystery why there's no dropdown/NumericUpDown here.
+        var lblType = new Label
+        {
+            Text = "PDF", AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = SystemColors.GrayText
+        };
+        var lblPorts = new Label
+        {
+            Text = "8000 / 18000", AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = SystemColors.GrayText
+        };
+
         _lodopEnabledCheckBox = new CheckBox { Checked = config.Enabled, AutoSize = true, Anchor = AnchorStyles.Left };
 
         _lodopTestButton = new Button
@@ -209,9 +222,11 @@ public partial class SettingsForm : Form
         SizeTestButton(_lodopTestButton);
         _lodopTestButton.Click += (_, _) => TestLodopRow();
 
-        tlpFormats.Controls.Add(lblSize, 1, rowIndex);
+        tlpFormats.Controls.Add(_lodopSizeLabel, 1, rowIndex);
         tlpFormats.Controls.Add(txtUrl, 2, rowIndex);
         tlpFormats.Controls.Add(_lodopPrinterCombo, 3, rowIndex);
+        tlpFormats.Controls.Add(lblType, 4, rowIndex);
+        tlpFormats.Controls.Add(lblPorts, 5, rowIndex);
         tlpFormats.Controls.Add(_lodopEnabledCheckBox, 6, rowIndex);
         tlpFormats.Controls.Add(_lodopTestButton, 7, rowIndex);
     }
@@ -232,16 +247,30 @@ public partial class SettingsForm : Form
 
         // Exercise the REAL path (JS-equivalent HTTP call -> fetch pdfUrl -> PrintTo), not
         // a shortcut straight to PrintModel — the bugs worth catching here are exactly the
-        // ones a shortcut would hide (absolute URL, CORS, JSON body). If 8000/18000 are
-        // already bound (the real listener is enabled and running), our own bind just
-        // fails and BoundPorts is empty; we fall back to assuming 8000 is that live one.
+        // ones a shortcut would hide (absolute URL, CORS, JSON body).
         LodopCompatListener? tempListener = null;
         try
         {
             var tempConfig = new LodopCompatConfig { PrinterName = printerName };
             tempListener = new LodopCompatListener(tempConfig, new PrintModel(), AppendLog);
             await Task.Run(() => tempListener.Start());
-            var port = tempListener.BoundPorts.Count > 0 ? tempListener.BoundPorts[0] : 8000;
+
+            if (tempListener.BoundPorts.Count == 0)
+            {
+                // Do NOT fall back to guessing port 8000 has "our" listener on it — if
+                // something else (e.g. a real C-Lodop install still running) is bound
+                // there instead, POSTing to it can get back an unrelated 200 OK and this
+                // test would report false success while nothing was actually printed
+                // through OUR code. Report the real problem instead.
+                AppendLog("Lodop-compat test: could not bind 8000 or 18000 — is a real C-Lodop install still running?");
+                MessageBox.Show(
+                    this,
+                    "无法启动兼容服务：8000 和 18000 端口都被占用，很可能是真实 C-Lodop 还在运行（未卸载，或有自动重启机制）。请先确认真实 C-Lodop 已完全卸载/停止后再测试。",
+                    "Label Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var port = tempListener.BoundPorts[0];
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
             var content = new StringContent(
@@ -436,6 +465,7 @@ public partial class SettingsForm : Form
             row.Type.SelectedIndex = selected;
         }
 
+        _lodopSizeLabel.Text = L.T("lodop.label");
         if (_lodopTestButton.Enabled)
         {
             _lodopTestButton.Text = L.T("btn.test");

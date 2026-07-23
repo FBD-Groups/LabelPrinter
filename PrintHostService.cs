@@ -42,7 +42,12 @@ public sealed class PrintHostService : IDisposable
         }
 
         var ports = string.Join(", ", _config.LabelFormats.Where(f => f.Enabled).Select(f => $"{f.Size}:{f.Port}"));
-        LogMessage?.Invoke($"Running. Ports: {ports}");
+        var lodopStatus = !_config.LodopCompat.Enabled
+            ? "off"
+            : _lodopCompatListener!.BoundPorts.Count > 0
+                ? string.Join("+", _lodopCompatListener.BoundPorts)
+                : "FAILED (see log above)";
+        LogMessage?.Invoke($"Running. Ports: {ports}. Lodop-compat: {lodopStatus}.");
     }
 
     public void Restart(AppConfig config) => Start(config);

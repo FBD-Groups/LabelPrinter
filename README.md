@@ -26,7 +26,7 @@ ControlCode 标签打印客户端 —— Windows 系统托盘程序。
 | 设置界面 | 逐尺寸选择打印机 / 类型 / 端口 / 启用状态，显示本机局域网 IP，支持逐尺寸测试打印 |
 | 开机自启 | 写入当前用户注册表 `Run` 项 |
 | 自动重连 | WebSocket 断线后按配置间隔自动重试 |
-| 日志 | 运行日志写入 `logs/labelprinter.log` |
+| 日志 | 运行日志写入 `logs/labelprinter-<日期>.log` |
 
 ## 架构
 
@@ -255,12 +255,12 @@ LabelPrinter/
 - 确认使用的是该尺寸对应的端口（默认 4x2=`48210`，4x3=`48211`，4x6=`48212`）
 - 默认 `AllowLanAccess` 为 `false`，仅监听 `http://localhost:<port>/`，其他机器无法访问
 - 若需其他机器访问，将 `AllowLanAccess` 设为 `true`（此时绑定 `http://+:<port>/`），并以管理员身份运行，或提前执行 `netsh http add urlacl url=http://+:<port>/ user=Everyone`
-- 查看 `logs/labelprinter.log`，端口被占用或权限不足时监听会失败并记录错误
+- 查看 `logs/labelprinter-<日期>.log`，端口被占用或权限不足时监听会失败并记录错误
 
 **WebSocket 一直未连接**
 
 - 检查 RMA 服务地址与端口
-- 查看 `logs/labelprinter.log` 中的错误信息
+- 查看 `logs/labelprinter-<日期>.log` 中的错误信息
 - 托盘右键 **重新连接** 手动触发
 
 **打印任务被跳过 / 没有打印**

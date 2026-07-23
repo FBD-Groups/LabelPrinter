@@ -1,9 +1,12 @@
 namespace LabelPrinter;
 
 /// <summary>
-/// Best-effort append-only logger to logs/labelprinter.log. Never throws — logging
-/// must not be able to take the process down, so all I/O errors are swallowed. Used
-/// both by the tray's live log and by the process-level crash handlers in Program.
+/// Best-effort append-only logger to logs/labelprinter-yyyy-MM-dd.log — one file per
+/// calendar day, so a long-running tray process doesn't grow a single ever-larger log
+/// file. Never throws — logging must not be able to take the process down, so all I/O
+/// errors are swallowed. Used both by the tray's live log and by the process-level crash
+/// handlers in Program. Old day-files are left in place (not auto-deleted); prune
+/// manually if disk space becomes a concern.
 /// </summary>
 public static class FileLog
 {
@@ -15,10 +18,11 @@ public static class FileLog
         {
             var logDir = Path.Combine(AppContext.BaseDirectory, "logs");
             Directory.CreateDirectory(logDir);
+            var path = Path.Combine(logDir, $"labelprinter-{DateTime.Now:yyyy-MM-dd}.log");
             lock (Gate)
             {
                 File.AppendAllText(
-                    Path.Combine(logDir, "labelprinter.log"),
+                    path,
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
             }
         }

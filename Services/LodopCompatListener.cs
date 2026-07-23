@@ -63,19 +63,45 @@ public sealed class LodopCompatListener : IDisposable
             _log("Lodop-compat: failed to bind both 8000 and 18000 — feature is unavailable.");
     }
 
+    // A just-stopped listener (ours from a moment ago — Save & Apply / Reconnect calls
+    // Stop() then immediately Start() again — or a previous run of this same process)
+    // can leave the OS a moment behind: HttpListener.Close() returns before the port is
+    // necessarily free to rebind. Observed in practice: an immediate restart failed to
+    // bind BOTH 8000 and 18000 even though nothing else was using them a second later.
+    // Retry briefly instead of giving up on the first attempt.
+    private const int MaxBindAttempts = 4;
+    private static readonly TimeSpan BindRetryDelay = TimeSpan.FromMilliseconds(300);
+
     private void StartOne(int port)
     {
-        var listener = new HttpListener();
-        listener.Prefixes.Add($"http://localhost:{port}/");
-        try
+        // A failed Start() leaves that HttpListener instance unusable (it throws
+        // ObjectDisposedException on a subsequent Start(), confirmed empirically) — each
+        // retry attempt needs a brand new instance, not another Start() on the same one.
+        HttpListener? listener = null;
+        for (var attempt = 1; attempt <= MaxBindAttempts; attempt++)
         {
-            listener.Start();
+            listener = new HttpListener();
+            listener.Prefixes.Add($"http://localhost:{port}/");
+            try
+            {
+                listener.Start();
+                break;
+            }
+            catch (HttpListenerException ex) when (attempt < MaxBindAttempts)
+            {
+                _log($"Lodop-compat: {port} busy on attempt {attempt}/{MaxBindAttempts} ({ex.Message}), retrying...");
+                listener = null;
+                Thread.Sleep(BindRetryDelay);
+            }
+            catch (HttpListenerException ex)
+            {
+                _log($"Lodop-compat: failed to listen on {port}: {ex.Message}");
+                return;
+            }
         }
-        catch (HttpListenerException ex)
-        {
-            _log($"Lodop-compat: failed to listen on {port}: {ex.Message}");
+
+        if (listener is null)
             return;
-        }
 
         var cts = new CancellationTokenSource();
         var task = Task.Run(() => ListenAsync(listener, port, cts.Token));

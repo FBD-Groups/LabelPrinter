@@ -80,7 +80,7 @@ partial class SettingsForm
         tlpFormats.AutoSize = false;
         tlpFormats.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));    // default radio (fits "Default" in English)
-        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38F));    // size
+        tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 85F));    // size (also holds "MZL Support" on the Lodop-compat row)
         tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 230F));   // call URL
         tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155F));   // printer
         tlpFormats.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62F));    // type
